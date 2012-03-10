@@ -29,7 +29,7 @@ class Sms_Filter_Install {
 		// Create the database tables.
 		// Also include table_prefix in name
     $this->db->query(
-      "CREATE TABLE `ushahidi_head`.`alert_region` (".
+      "CREATE TABLE IF NOT EXISTS `".Kohana::config('database.default.table_prefix')."alert_region` (".
       "`id` INT NOT NULL AUTO_INCREMENT,".
       "`alert_id` INT NOT NULL ,".
       "`region_id` INT NOT NULL ,".
