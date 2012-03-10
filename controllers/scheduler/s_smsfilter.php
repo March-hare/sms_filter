@@ -210,9 +210,12 @@ class S_Smsfilter_Controller extends Controller {
   }
 
   private function _within_range_of_interest($alertee, $incident) {
+    // If we have a geometry_label then we should check if we are in region
+    // If we do not have a geometry_label then we should check if we are within
+    // radius
     if (
-      $this->_within_region_of_interest($alertee, $incident) ||
-      $this->_within_radius_of_interest($alertee, $incident)
+      (isset($alertee->geometry_label) && $this->_within_region_of_interest($alertee, $incident)) ||
+      (!isset($alertee->geometry_label) && $this->_within_radius_of_interest($alertee, $incident))
     ) {
       return true;
     }
@@ -223,11 +226,7 @@ class S_Smsfilter_Controller extends Controller {
     // If alertee->geometry_label is defined then the alert is specific to
     // the associated region, else it is specific to the associated 
     // lat,lon,radius
-    if (!isset($alertee->geometry_label)) {
-      return false;
-    }
-
-    Kohana::log('debug', 'S_Smsfilter_Controller::index '.
+    Kohana::log('debug', 'S_Smsfilter_Controller::_within_region_of_interest '.
       '(recipient, category_title, sector name) => '.
       $alertee->alert_recipient .', '. 
       $alertee->category_title.', '. 
@@ -245,7 +244,7 @@ class S_Smsfilter_Controller extends Controller {
     $distance = (string) new Distance(
       $incident->latitude, $incident->longitude, $latitude2, $longitude2);
     
-    Kohana::log('debug', 'S_Smsfilter_Controller::index '.
+    Kohana::log('debug', 'S_Smsfilter_Controller::_within_radius_of_interest '.
       '(recipient, category_title, lat, lon, radius) => '.
       $alertee->alert_recipient .', '. 
       $alertee->category_title.', '. 

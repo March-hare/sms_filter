@@ -35,7 +35,7 @@ class Messaging_Controller extends Main_Controller {
 		// Load the alert radius map view
 		$alert_radius_view = new View('sms_filter/alert_radius_view');
 		$alert_radius_view->show_usage_info = TRUE;
-    $alert_radius_view->enable_find_location = TRUE;
+    $alert_radius_view->enable_find_location = FALSE;
 
 		$this->template->content->alert_radius_view = $alert_radius_view;
 
@@ -124,6 +124,14 @@ class Messaging_Controller extends Main_Controller {
 					alert::_send_email_alert($post, $alert_orm);
 					$this->session->set('alert_email', $post->alert_email);
 				}
+
+        // If a region was specified use that
+        if (isset($post->sectors)) {
+          $alert_region = new Alert_Region_Model();
+          $alert_region->region_id = $post->sectors;
+          $alert_region->alert_id = $alert_orm->id;
+          $alert_region->save();
+        }
 
 				url::redirect('alerts/confirm');                    
             }
