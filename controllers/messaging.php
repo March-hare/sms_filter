@@ -35,7 +35,7 @@ class Messaging_Controller extends Main_Controller {
 		// Load the alert radius map view
 		$alert_radius_view = new View('sms_filter/alert_radius_view');
 		$alert_radius_view->show_usage_info = TRUE;
-    $alert_radius_view->enable_find_location = FALSE;
+		$alert_radius_view->enable_find_location = FALSE;
 
 		$this->template->content->alert_radius_view = $alert_radius_view;
 
@@ -43,7 +43,7 @@ class Messaging_Controller extends Main_Controller {
 		// Display Mobile Option?
 		$this->template->content->show_mobile = TRUE;
 		$settings = ORM::factory('settings', 1);
-		
+
 		if ( ! Kohana::config("settings.sms_provider"))
 		{
 			// Hide Mobile
@@ -69,15 +69,15 @@ class Messaging_Controller extends Main_Controller {
 			'alert_lon' => '',
 			'alert_radius' => '',
 			'alert_country' => '',
-      'alert_confirmed' => '',
-      'sectors' => array()
+			'alert_confirmed' => '',
+			'sectors' => array()
 		);
-		
+
 		if ($this->user)
 		{
 			$form['alert_email'] = $this->user->email;
 		}
-		
+
 		// Get Countries
 		$countries = array();
 		foreach (ORM::factory('country')->orderby('country')->find_all() as $country)
@@ -90,20 +90,20 @@ class Messaging_Controller extends Main_Controller {
 			}
 			$countries[$country->id] = $this_country;
 		}
-		
+
 		// Initialize Default Value for Hidden Field Country Name, just incase Reverse Geo coding yields no result
 		$form['alert_country'] = $countries[$default_country];
 
 		//Initialize default value for Alert confirmed hidden value
-		
+
 		$this->template->content->countries = $countries;
-	
+
 		// Copy the form as errors, so the errors will be stored with keys
 		// corresponding to the form field names
 		$errors = $form;
 		$form_error = FALSE;
 		$form_saved = FALSE;
-       
+
 		// If there is a post and $_POST is not empty
 		if ($post = $this->input->post())
 		{
@@ -125,13 +125,13 @@ class Messaging_Controller extends Main_Controller {
 					$this->session->set('alert_email', $post->alert_email);
 				}
 
-        // If a region was specified use that
-        if (isset($post->sectors)) {
-          $alert_region = new Alert_Region_Model();
-          $alert_region->region_id = $post->sectors;
-          $alert_region->alert_id = $alert_orm->id;
-          $alert_region->save();
-        }
+				// If a region was specified use that
+				if (isset($post->sectors)) {
+					$alert_region = new Alert_Region_Model();
+					$alert_region->region_id = $post->sectors;
+					$alert_region->alert_id = $alert_orm->id;
+					$alert_region->save();
+				}
 
 				url::redirect('alerts/confirm');                    
             }
@@ -154,10 +154,9 @@ class Messaging_Controller extends Main_Controller {
 			$form['alert_category'] = array();
         }
         
-    // Load the alert region map view
-    $form['sectors'] = ORM::factory('region')->select_list('id', 'geometry_label');
-    $this->template->content->alert_region_view = new View('sms_filter/alert_sector_view');
-    $this->template->content->alert_region_view->form = $form;
+		$form['sectors'] = ORM::factory('region')->select_list('id', 'geometry_label');
+		$this->template->content->alert_region_view = new View('sms_filter/alert_sector_view');
+		$this->template->content->alert_region_view->form = $form;
 
 		$this->template->content->form = $form;
 		$this->template->content->errors = $errors;
@@ -171,15 +170,15 @@ class Messaging_Controller extends Main_Controller {
 		$this->themes->js->default_map = Kohana::config('settings.default_map');
 		$this->themes->js->default_zoom = Kohana::config('settings.default_zoom');
 		$this->themes->js->latitude = $form['alert_lat'];
-    $this->themes->js->longitude = $form['alert_lon'];
-    $this->themes->js->geometries_hash = $this->_get_js_geometries_hash();
+		$this->themes->js->longitude = $form['alert_lon'];
+		$this->themes->js->geometries_hash = $this->_get_js_geometries_hash();
 
 		// Rebuild Header Block
 		$this->template->header->header_block = $this->themes->header_block();
 		$this->template->footer->footer_block = $this->themes->footer_block();
     }
 
-    
+
 	/**
 	 * Alerts Confirmation Page
 	 */
@@ -188,18 +187,18 @@ class Messaging_Controller extends Main_Controller {
 		$this->template->header->this_page = 'alerts';
 		$this->template->content = new View('alerts_confirm');
 
-		$this->template->content->alert_mobile = (isset($_SESSION['alert_mobile']) AND ! empty($_SESSION['alert_mobile'])) 
-			? $_SESSION['alert_mobile'] 
+		$this->template->content->alert_mobile = (isset($_SESSION['alert_mobile']) AND ! empty($_SESSION['alert_mobile']))
+			? $_SESSION['alert_mobile']
 			: "";
-        
+
 		$this->template->content->alert_email = (isset($_SESSION['alert_email']) AND ! empty($_SESSION['alert_email']))
-			? $_SESSION['alert_email'] 
+			? $_SESSION['alert_email']
 			: "";
-            
+
 		// Display Mobile Option?
 		$this->template->content->show_mobile = TRUE;
 		$settings = ORM::factory('settings', 1);
-		
+
 		//if ( ! Kohana::config("settings.sms_provider"))
 		if ( empty($_SESSION['alert_mobile']))
 		{
@@ -209,9 +208,10 @@ class Messaging_Controller extends Main_Controller {
 
 		// Rebuild Header Block
 		$this->template->header->header_block = $this->themes->header_block();
+		$this->template->footer->footer_block = $this->themes->footer_block();
 	}
-    
-    
+
+
 	/**
 	 * Verifies a previously sent alert confirmation code
 	 */
@@ -221,18 +221,18 @@ class Messaging_Controller extends Main_Controller {
 		define("ER_CODE_VERIFIED", 0);
 		define("ER_CODE_NOT_FOUND", 1);
 		define("ER_CODE_ALREADY_VERIFIED", 3);
-        
+
 		$code = (isset($_GET['c']) AND !empty($_GET['c'])) ? $_GET['c'] : "";
-            
+
 		$email = (isset($_GET['e']) AND !empty($_GET['e'])) ? $_GET['e'] : "";
-        
+
 		// INITIALIZE the content's section of the view
 		$this->template->content = new View('alerts_verify');
 		$this->template->header->this_page = 'alerts';
 
 		$filter = " ";
 		$missing_info = FALSE;
-		
+
 		if ($_POST AND isset($_POST['alert_code']) AND ! empty($_POST['alert_code']))
 		{
 			if (isset($_POST['alert_mobile']) AND ! empty($_POST['alert_mobile']))
@@ -259,7 +259,7 @@ class Messaging_Controller extends Main_Controller {
 				$filter = "alert.alert_type=2 AND alert_code='".$code."' AND alert_recipient='".$email."' ";
 			}
 		}
-        
+
 		if ( ! $missing_info)
 		{
 			$alert_check = ORM::factory('alert')
@@ -275,7 +275,7 @@ class Messaging_Controller extends Main_Controller {
 			{
 				$this->template->content->errno = ER_CODE_ALREADY_VERIFIED;
 			}
-			else 
+			else
 			{
 				// SET the alert as confirmed, and save it
 				$alert_check->set('alert_confirmed', 1)->save();
@@ -286,15 +286,16 @@ class Messaging_Controller extends Main_Controller {
 		{
 			$this->template->content->errno = ER_CODE_NOT_FOUND;
 		}
-        
+
 		// Rebuild Header Block
 		$this->template->header->header_block = $this->themes->header_block();
+		$this->template->footer->footer_block = $this->themes->footer_block();
 	} // END function verify
 
 
 	/**
 	 * Unsubscribes alertee using alertee's confirmation code
-	 * 
+	 *
 	 * @param string $code
 	 */
 	public function unsubscribe($code = NULL)
@@ -302,41 +303,42 @@ class Messaging_Controller extends Main_Controller {
 		$this->template->content = new View('alerts_unsubscribe');
 		$this->template->header->this_page = 'alerts';
 		$this->template->content->unsubscribed = FALSE;
-        
+
 		// XXX Might need to validate $code as well
 		if ($code != NULL)
 		{
 			Alert_Model::unsubscribe($code);
 			$this->template->content->unsubscribed = TRUE;
 		}
-        
+
 		// Rebuild Header Block
 		$this->template->header->header_block = $this->themes->header_block();
+		$this->template->footer->footer_block = $this->themes->footer_block();
     }
 
 
 
-  private function _get_js_geometries_hash() {
-    // Database object
-    $db = new Database();
-    $sql = 'SELECT AsText(geometry) tGeometry, region.* from region';
-    $query = $db->query($sql);
+	private function _get_js_geometries_hash() {
+	// Database object
+		$db = new Database();
+		$sql = 'SELECT AsText(geometry) tGeometry, region.* from region';
+		$query = $db->query($sql);
 
-    $js_array = "var geometries = new Object();\n";
-    foreach ($query as $region) {
-      $js_array .= "geometries[". $region->id ."] = {\n".
-        "'label': '". $region->geometry_label ."',\n".
-        "'comment': '". $region->geometry_comment."',\n".
-        "'color': '". $region->geometry_color."',\n".
-        "'strokewidth': ". $region->geometry_strokewidth.",\n".
-        "'approved': ". $region->approved.",\n".
-        "'geometry': '". $region->tGeometry."'};\n";
-    }
-    return $js_array;
-  }
+		$js_array = "var geometries = new Object();\n";
+		foreach ($query as $region) {
+			$js_array .= "geometries[". $region->id ."] = {\n".
+			"'label': '". $region->geometry_label ."',\n".
+			"'comment': '". $region->geometry_comment."',\n".
+			"'color': '". $region->geometry_color."',\n".
+			"'strokewidth': ". $region->geometry_strokewidth.",\n".
+			"'approved': ". $region->approved.",\n".
+			"'geometry': '". $region->tGeometry."'};\n";
+		}
+		return $js_array;
+	}
 
 
-     
+
 	/**
 	 * Retrieves Previously Cached Geonames Cities
 	 */
@@ -344,8 +346,8 @@ class Messaging_Controller extends Main_Controller {
 	{
 		$cities = ORM::factory('city')->orderby('city', 'asc')->find_all();
 		$city_select = array('' => Kohana::lang('ui_main.alerts_select_city'));
-		
-		foreach ($cities as $city) 
+
+		foreach ($cities as $city)
 		{
 			$city_select[$city->city_lon.",".$city->city_lat] = $city->city;
 		}
