@@ -127,6 +127,7 @@ class S_Smsfilter_Controller extends Controller {
         ->join('alert_region', array('alert.id' => 'alert_region.alert_id'), '', 'LEFT')
         ->join('region', array('region.id' => 'alert_region.region_id'), '', 'LEFT')
         ->where('category_id IN ('. implode(', ', array_keys($category_ids)) .')')
+        ->groupby('aid')
         ->get();
 
 
