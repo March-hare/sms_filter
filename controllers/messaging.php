@@ -65,11 +65,13 @@ class Messaging_Controller extends Main_Controller {
 			'alert_mobile_yes' => '',
 			'alert_email' => '',
 			'alert_email_yes' => '',
+			'alert_rss' => '',
 			'alert_lat' => '',
 			'alert_lon' => '',
 			'alert_radius' => '',
 			'alert_country' => '',
 			'alert_confirmed' => '',
+      'radius' => '',
 			'sectors' => array()
 		);
 
@@ -91,9 +93,6 @@ class Messaging_Controller extends Main_Controller {
 			$countries[$country->id] = $this_country;
 		}
 
-		// Initialize Default Value for Hidden Field Country Name, just incase Reverse Geo coding yields no result
-		$form['alert_country'] = $countries[$default_country];
-
 		//Initialize default value for Alert confirmed hidden value
 
 		$this->template->content->countries = $countries;
@@ -107,7 +106,7 @@ class Messaging_Controller extends Main_Controller {
 		// If there is a post and $_POST is not empty
 		if ($post = $this->input->post())
 		{
-			$alert_orm = new Alert_Model();
+			$alert_orm = new SMS_Filter_Model();
 			if ($alert_orm->validate($post))
 			{
 				// Yes! everything is valid
@@ -125,8 +124,33 @@ class Messaging_Controller extends Main_Controller {
 					$this->session->set('alert_email', $post->alert_email);
 				}
 
+				if ( ! empty($post->alert_rss))
+        {
+          // We need the categories and the region / sector
+          $url = 'messaging/rss?';
+
+          if (!empty($post->radius) && $post->radius) {
+            $url .= 'alert_radius='. $post->alert_radius .
+              '&alert_lon='. $post->alert_lon .
+              '&alert_lat='. $post->alert_lat;
+          } else if (!empty($post->sectors)) {
+            $url .= '&sectors='. $post->sectors;
+          }
+
+          if (!empty($post->alert_category)) {
+            $url .= '&alert_category='. implode(',', $post->alert_category);
+          }
+
+          //$this->session->set('rss_url', $url);
+          url::redirect($url);
+				}
+
 				// If a region was specified use that
-				if (isset($post->sectors)) {
+        if (
+          !empty($post->radius) && 
+          !$post->radius &&
+          isset($post->sectors)
+        ) {
 					$alert_region = new Alert_Region_Model();
 					$alert_region->region_id = $post->sectors;
 					$alert_region->alert_id = $alert_orm->id;
@@ -143,14 +167,16 @@ class Messaging_Controller extends Main_Controller {
 
 				// populate the error fields, if any
 				$errors = arr::overwrite($errors, $post->errors('alerts'));
-				$form_error = TRUE;
-            }
+        if (array_key_exists('alert_recipient', $post->errors('alerts'))) {
+          $errors = array_merge($errors, $post->errors('alerts'));
         }
-        else
-        {
+				$form_error = TRUE;
+      }
+    } else {
 			$form['alert_lat'] = Kohana::config('settings.default_lat');
 			$form['alert_lon'] = Kohana::config('settings.default_lon');
 			$form['alert_radius'] = 20;
+			$form['radius'] = 0;
 			$form['alert_category'] = array();
         }
         
@@ -158,9 +184,11 @@ class Messaging_Controller extends Main_Controller {
 		$this->template->content->alert_region_view = new View('sms_filter/alert_sector_view');
 		$this->template->content->alert_region_view->form = $form;
 
+		$this->template->content->form_error = $form_error;
+		// Initialize Default Value for Hidden Field Country Name, just incase Reverse Geo coding yields no result
+		$form['alert_country'] = $countries[$default_country];
 		$this->template->content->form = $form;
 		$this->template->content->errors = $errors;
-		$this->template->content->form_error = $form_error;
 		$this->template->content->form_saved = $form_saved;
 
 		// Javascript Header
@@ -171,6 +199,7 @@ class Messaging_Controller extends Main_Controller {
 		$this->themes->js->default_zoom = Kohana::config('settings.default_zoom');
 		$this->themes->js->latitude = $form['alert_lat'];
 		$this->themes->js->longitude = $form['alert_lon'];
+		$this->themes->js->radius = $form['radius'];
 		$this->themes->js->geometries_hash = $this->_get_js_geometries_hash();
 
 		// Rebuild Header Block
@@ -353,5 +382,151 @@ class Messaging_Controller extends Main_Controller {
 		}
 		return $city_select;
 	}
+
+  public function rss($feedtype = 'rss2') {
+
+      if ($feedtype != 'atom' AND $feedtype!= 'rss2')
+      {
+          throw new Kohana_404_Exception();
+      }
+
+      // How Many Items Should We Retrieve?
+      $limit = ( isset($_GET['l']) AND !empty($_GET['l']) AND (int) $_GET['l'] <= 200)
+          ? (int) $_GET['l'] : 20;
+
+      // Start at which page?
+      $page = ( isset($_GET['p']) AND ! empty($_GET['p']) AND (int) $_GET['p'] >= 1 )
+          ? (int) $_GET['p'] 
+          : 1;
+          
+      $page_position = ($page == 1) ? 0 : ( $page * $limit ) ; // Query position
+
+      $site_url = url::base();
+
+      // Cache the Feed with subdomain in the cache name if mhi is set
+
+      $subdomain = '';
+      if(substr_count($_SERVER["HTTP_HOST"],'.') > 1 AND Kohana::config('config.enable_mhi') == TRUE)
+      {
+          $subdomain = substr($_SERVER["HTTP_HOST"],0,strpos($_SERVER["HTTP_HOST"],'.'));
+      }
+
+      /* We are depending on 3rd party sw for caching 
+      $cache = Cache::instance();
+      $feed_items = $cache->get($subdomain.'_feed_'.$limit.'_'.$page);
+      
+      if ($feed_items == NULL)
+      { // Cache is Empty so Re-Cache
+       */ 
+
+      // How are we recieving categories so that we can filter by them?
+      $db = new Database();
+      $sql = 'SELECT incident.*,location.* FROM incident '.
+        'LEFT JOIN incident_category ON (incident.id= incident_category.incident_id) '.
+        'LEFT JOIN location ON (location.id = incident.location_id) '.
+        'WHERE incident.incident_active = 1 ';
+
+      if (
+        !empty($_GET['alert_category']) &&
+        preg_match('/\d+(,\d+)*/', $_GET['alert_category'])
+      ) {
+        $sql .= 'AND incident_category.category_id IN ('.$_GET['alert_category'].')';
+      }
+      $sql .= ' GROUP BY incident.id ORDER BY incident_date DESC';
+
+      $query = $db->query($sql);
+
+      Kohana::log('info', $sql);
+      foreach($query as $incident)
+      {
+
+        // Pass off the geometry filtering 
+        if ($this->_filtered_geometry($incident)) {
+          continue;
+        }
+
+        $categories = Array();
+        $sql = 'SELECT category_title FROM category '.
+        'LEFT JOIN incident_category on (incident_category.category_id = category.id) '.
+        'LEFT JOIN incident ON (incident_category.incident_id = incident.id) '.
+        'WHERE incident.id = '.  $incident->id;
+        $subquery = $db->query($sql);
+        foreach ($subquery AS $category)
+        {
+          $categories[] = (string)$category->category_title;
+        }
+      
+        $item = array();
+        $item['id'] = $incident->id;
+        $item['title'] = $incident->incident_title;
+        $item['link'] = $site_url.'reports/view/'.$incident->id;
+        $item['description'] = $incident->incident_description;
+        $item['date'] = $incident->incident_date;
+        $item['categories'] = $categories;
+        
+        if($incident->location_id != 0
+            AND $incident->longitude
+            AND $incident->latitude)
+        {
+                $item['point'] = array($incident->latitude,
+                                        $incident->longitude);
+                $items[] = $item;
+        }
+      }
+
+      //$cache->set($subdomain.'_feed_'.$limit.'_'.$page, $items, array('feed'), 3600); // 1 Hour
+      $feed_items = $items;
+      //}
+
+      $feedpath = $feedtype == 'atom' ? 'feed/atom/' : 'feed/';
+
+      //header("Content-Type: text/xml; charset=utf-8");
+      $this->template = new View('feed_'.$feedtype);
+      $this->template->feed_title = htmlspecialchars(Kohana::config('settings.site_name'));
+      $this->template->site_url = $site_url;
+      $this->template->georss = 1; // this adds georss namespace in the feed
+      $this->template->feed_url = $site_url.$feedpath;
+      $this->template->feed_date = gmdate("D, d M Y H:i:s T", time());
+      $this->template->feed_description = htmlspecialchars(Kohana::lang('ui_admin.incident_feed').' '.Kohana::config('settings.site_name'));
+      $this->template->items = $feed_items;
+      $this->template->render(TRUE);
+      Kohana::log('info', 'feed_'.$feedtype);
+  }
+
+  private function _filtered_geometry($incident) {
+    // We need an incident with lat and lon
+    if (
+      empty($incident->location->latitude) ||
+      !is_float($incident->location->latitude) ||
+      empty($incident->location->longitude) ||
+      !is_float($incident->location->longitude)
+    ) {
+      // Return false if we do not have the right args cause we assume we just
+      // did not recieve them
+      return false;
+    }
+
+    // We need either (alert_lat && alert_lon && alert_radius) || sectors
+    if (
+      !empty($_GET['alert_radius']) &&
+      is_int($_GET['alert_radius']) &&
+      !empty($GET['alert_lat']) &&
+      is_float($GET['alert_lat']) &&
+      !empty($GET['alert_lon']) &&
+      is_float($GET['alert_lon']) 
+    ) {
+      $distance = (string) new Distance(
+        $_GET['alert_lat'], 
+        $_GET['alert_lon'], 
+        $incident->location->latitude, 
+        $incident->location->longitude);
+      return !($distance <= $_GET['alert_radius']);
+    } else if (
+      !empty($_GET['sectors']) &&
+      is_int($_GET['sectors'])
+    ) {
+      return !Sector::incidentInRegion($incident->id, $_GET['sectors']);
+    }
+  }
 
 }

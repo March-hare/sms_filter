@@ -77,10 +77,20 @@
       // the region selector
       $('#alert_radius_view').hide();
       $('a#select_by_region').hide();
+      $('input#radius').val(0);
       $('a.select_area').click(function() {
         // hide the region link and the radius view
         $('div#alert_radius_view').slideToggle(1000);
         $('div#alert_region_view').slideToggle(1000);
+
+        var val = $('input#radius').val();
+        if (val == 0) {
+          val = 1;
+        } else {
+          val = 0;
+        }
+
+        $('input#radius').val(val);
         $('a.select_area').toggle();
       });
      

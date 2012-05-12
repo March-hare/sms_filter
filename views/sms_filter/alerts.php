@@ -28,6 +28,7 @@
 			</div>
 			<input type="hidden" id="alert_lat" name="alert_lat" value="<?php echo $form['alert_lat']; ?>">
 			<input type="hidden" id="alert_lon" name="alert_lon" value="<?php echo $form['alert_lon']; ?>">
+			<input type="hidden" id="radius" name="radius" value="<?php echo $form['radius'] ?>" />
 			<input type="hidden" id="alert_country" name="alert_country" value="<?php echo $form['alert_country'] ?>" />
 			<input type="hidden" id="alert_confirmed" name="alert_confirmed" value="<?php echo $form['alert_confirmed'] ?>" />
 			<div class="step-2-holder">
@@ -57,6 +58,15 @@
 								</span>
 							</label>
 							<span><?php print form::input('alert_email', $form['alert_email'], ' class="text long"'); ?></span>
+						</div>
+						<div class="box">
+							<label>
+								<?php $checked = ($form['alert_rss'] == 1) ?> 
+								<?php print form::checkbox('alert_rss', '1', $checked); ?>
+								<span>
+									<strong><?php echo Kohana::lang('sms_filter.alerts_rss'); ?></strong><br />
+								</span>
+							</label>
 						</div>
 					</div>
 				</div>
