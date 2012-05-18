@@ -384,7 +384,6 @@ class Messaging_Controller extends Main_Controller {
 	}
 
   public function rss($feedtype = 'rss2') {
-
       if ($feedtype != 'atom' AND $feedtype!= 'rss2')
       {
           throw new Kohana_404_Exception();
@@ -436,7 +435,7 @@ class Messaging_Controller extends Main_Controller {
 
       $query = $db->query($sql);
 
-      Kohana::log('info', $sql);
+      $items = Array();
       foreach($query as $incident)
       {
 
