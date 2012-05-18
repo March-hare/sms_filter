@@ -18,14 +18,18 @@ class S_Smsfilter_Controller extends Controller {
 	public $table_prefix = '';
 	
 	// Cache instance
-	protected $cache;
+  protected $cache;
+  protected $db;
 	
 	function __construct()
 	{
 		parent::__construct();
 
 		// Load cache
-		$this->cache = new Cache;
+    $this->cache = new Cache;
+
+    // Load DB
+    $this->db = new Database();
 		
 		// *************************************
 		// ** SAFEGUARD DUPLICATE SEND-OUTS **
@@ -67,7 +71,6 @@ class S_Smsfilter_Controller extends Controller {
 		$settings = NULL;
 		$sms_from = NULL;
 
-		$db = new Database();
 		
 		/* Find All Alerts with the following parameters
 		- incident_active = 1 -- An approved incident
@@ -78,7 +81,7 @@ class S_Smsfilter_Controller extends Controller {
 		  - 1, Incident has been tagged for sending by updating it with 'approved' or 'verified'
 		  - 2, Incident has been tagged as sent. No need to resend again
 		*/
-		$incidents = $db->query("SELECT i.id, incident_title, 
+    $incidents = $this->db->query("SELECT i.id, incident_title, 
 			incident_description, incident_verified, 
 			l.latitude, l.longitude, a.alert_id, a.incident_id
 			FROM ".$this->table_prefix."incident AS i INNER JOIN ".$this->table_prefix."location AS l ON i.location_id = l.id
@@ -109,24 +112,21 @@ class S_Smsfilter_Controller extends Controller {
 			$latitude = (double) $incident->latitude;
 			$longitude = (double) $incident->longitude;
 			
-			// Find all the catecories including parents
-      $category_ids = $this->_find_categories($incident->id);
-
 			// Get all alertees
 			$alertees = ORM::factory('alert')
 				->where('alert_confirmed','1')
         ->find_all();
 
-      $alertees = $db->select('alert.id as aid, alert.alert_radius, alert.alert_type, '.
+      // What if a region is selected but no categories?  Right now the 
+      // categories are optional.  This implies that if they are not explicitly
+      // defined that users will get all of the alerts for that region.  Really 
+      // we should be checking all alerts and filtering by category and region.
+      $alertees = $this->db->select('alert.id as aid, alert.alert_radius, alert.alert_type, '.
         'alert.alert_lat, alert.alert_lon, alert.alert_radius, region.geometry_label, '.
-        'alert.alert_recipient, alert.alert_code, category.category_title, '.
-        'region.id as rid')
+        'alert.alert_recipient, alert.alert_code, region.id as rid')
         ->from('alert')
-        ->join('alert_category', array('alert.id' => 'alert_category.alert_id'), '', 'LEFT')
-        ->join('category', array('category.id' => 'alert_category.category_id'), '', 'LEFT')
         ->join('alert_region', array('alert.id' => 'alert_region.alert_id'), '', 'LEFT')
         ->join('region', array('region.id' => 'alert_region.region_id'), '', 'LEFT')
-        ->where('category_id IN ('. implode(', ', array_keys($category_ids)) .')')
         ->get();
 
 
@@ -139,10 +139,13 @@ class S_Smsfilter_Controller extends Controller {
 				if ($alertee->aid == $incident->alert_id)
           continue;
 
-        if ($this->_within_range_of_interest($alertee, $incident)) {
+        if (
+          $this->_within_range_of_interest($alertee, $incident) &&
+          $this->_alertee_interested_in_cats($alertee, $incident)
+        ) {
           Kohana::log('debug', 'S_Smsfilter_Controller::index '.
-            'within range, sending notification');
-				
+            'within range and interested in cats, sending notification');
+
           if ($alertee->alert_type == 1) // SMS alertee
 					{
 						// Get SMS Numbers
@@ -194,8 +197,8 @@ class S_Smsfilter_Controller extends Controller {
 					}
         }
         else {
-          Kohana::log('debug', 'S_Smsfilter_Controller::index '.
-            'not within range, not sending notification');
+          Kohana::log('info', 'S_Smsfilter_Controller::index '.
+            'not within range or not a relevant category, not sending notification');
         }
       } // End For Each Loop
 
@@ -227,9 +230,8 @@ class S_Smsfilter_Controller extends Controller {
     // the associated region, else it is specific to the associated 
     // lat,lon,radius
     Kohana::log('debug', 'S_Smsfilter_Controller::_within_region_of_interest '.
-      '(recipient, category_title, sector name) => '.
+      '(recipient, sector name) => '.
       $alertee->alert_recipient .', '. 
-      $alertee->category_title.', '. 
       $alertee->geometry_label);
 
     return Sector::incidentInRegion($incident->id, $alertee->rid);
@@ -245,9 +247,8 @@ class S_Smsfilter_Controller extends Controller {
       $incident->latitude, $incident->longitude, $latitude2, $longitude2);
     
     Kohana::log('debug', 'S_Smsfilter_Controller::_within_radius_of_interest '.
-      '(recipient, category_title, lat, lon, radius) => '.
+      '(recipient, lat, lon, radius) => '.
       $alertee->alert_recipient .', '. 
-      $alertee->category_title.', '. 
       $alertee->alert_lat .', '.
       $alertee->alert_lon .', '.
       $alertee->alert_radius);
@@ -311,5 +312,33 @@ class S_Smsfilter_Controller extends Controller {
 	  }
 
 	  return $ret;
-	}
+  }
+
+  private function _alertee_interested_in_cats($alertee, $incident) {
+
+    // If there are no alert_category rows for the alertee_id then they are 
+    // interested.  Otherwise we need to check against the incident categories
+    $category_ids = $this->_find_categories($incident->id);
+
+
+    $alert_categories = $this->db->select('category_id')
+      ->from('alert_category')
+      ->where('alert_id', $alertee->aid)
+      ->get();
+
+    if (!$alert_categories->count()) {
+      Kohana::log('info', 'alertee is interested in_all_cats in this region');
+      return true;
+    }
+
+    foreach ($alert_categories as $alert_category) {
+      if (array_key_exists($alert_category->category_id, $category_ids)) {
+        Kohana::log('info', 'alertee is interested $category_id: '. 
+          $alert_category->category_id);
+        return true;
+      }
+    } 
+    Kohana::log('info', 'alertee not interested in any of the incident categories.');
+    return false;
+  }
 }
